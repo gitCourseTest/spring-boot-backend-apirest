@@ -11,8 +11,8 @@ import org.springframework.security.oauth2.config.annotation.web.configuration.A
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
-import org.springframework.security.oauth2.provider.token.AccessTokenConverter;
 import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
+import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
 
 @Configuration
 @EnableAuthorizationServer
@@ -25,27 +25,45 @@ public class AuthorizationServerConfig extends AuthorizationServerConfigurerAdap
 	@Autowired
 	@Qualifier("authenticationManager")
 	private AuthenticationManager authenticationManager;
-
+	
+	
+	/**Configuracion del authorizationServer.
+	 * aqui se configuran permisos de nuestros endPoints de spring security oauth2 **/
 	@Override
 	public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
-		super.configure(security);
+		security.tokenKeyAccess("permitAll()")//endpoint de login /oauth/token/   ruta de login para iniciar seccion en nuestro authorization server. aqui se genra el token
+		.checkTokenAccess("isAuthenticated()"); //dar permiso al endpoint que se encarga de validar el token. Aqui verifica el token y su firma
 	}
-
+	
+	/******************** Configuracion de los clientes que accederan a los servicios *************************************/
 	@Override
 	public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
-		super.configure(clients);
+		clients.inMemory().withClient("angularapp")
+		.secret(passwordEncoder.encode("12345"))
+		.scopes("read","write")
+		.authorizedGrantTypes("password", "refresh_token")
+		.accessTokenValiditySeconds(3600)
+		.refreshTokenValiditySeconds(3600);
 	}
 
+	/********Configuracion del server********* */
 	//se encarga de todo el proceso de authorization y de validar el token
 	@Override
 	public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
 		endpoints.authenticationManager(authenticationManager)//1. registrar el authenticacionManager
-		.accessTokenConverter(accessTokenConverter());//alamcena los datos de authenticacion del usuario(username, password...)
-		
+		.tokenStore(tokenStore())
+		.accessTokenConverter(accessTokenConverter());//almacena los datos de authenticacion del usuario(username, password...)	
 	}
+	
+	@Bean
+	public JwtTokenStore tokenStore() {
+		return new JwtTokenStore(accessTokenConverter());
+	}
+
 	@Bean
 	public JwtAccessTokenConverter accessTokenConverter() {
 		JwtAccessTokenConverter jwtAccessTokenConverter = new JwtAccessTokenConverter();
+		jwtAccessTokenConverter.setSigningKey(JwtConfig.LLAVE_SECRETA);//Asignar una clave secreta(con la que se genera el token), sino se asigna se genera uno en automatico
 		return jwtAccessTokenConverter;
 	}
 	
